@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+  <div id="app"></div>
+
+  <script>
+    // ========== Mock Data Generation ==========
+    const DEVICES = ["mobile", "desktop", "tablet"];
+    const DEVICE_WEIGHTS = [0.55, 0.35, 0.1];
+    const TRAFFIC_SOURCES = ["google", "twitter", "facebook", "linkedin", "direct", "referral"];
+    const SOURCE_WEIGHTS = [0.35, 0.15, 0.12, 0.08, 0.2, 0.1];
+    const COUNTRIES = ["United States", "United Kingdom", "Germany", "France", "Spain", "Italy", "Canada", "Australia", "Japan", "Brazil"];
+    const COUNTRY_WEIGHTS = [0.32, 0.15, 0.12, 0.08, 0.06, 0.05, 0.08, 0.05, 0.04, 0.05];
+    const BROWSERS = ["Chrome", "Firefox", "Safari", "Edge", "Opera"];
+    const BROWSER_WEIGHTS = [0.65, 0.15, 0.1, 0.08, 0.02];
+    const CAMPAIGNS = [
+      { id: "camp_001", name: "Spring Sale 2024" },
+      { id: "camp_002", name: "Product Launch" },
+      { id: "camp_003", name: "Holiday Promo" },
+      { id: "camp_004", name: "Brand Awareness" },
+      { id: "camp_005", name: "Retargeting Q1" },
+    ];
+    const EVENT_TYPES = ["page_view", "presale_click_cta", "online_shop_click", "documents_click", "newsletter_signup", "social_click", "trustpilot_click", "scroll_depth", "session_end"];
+
+    function weightedRandom(items, weights) {
+      const total = weights.reduce((a, b) => a + b, 0);
+      let random = Math.random() * total;
+      for (let i = 0; i < items.length; i++) {
+        random -= weights[i];
+        if (random <= 0) return items[i];
+      }
+      return items[items.length - 1];
+    }
+
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function generateId() {
+      return `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    function generateSessionId() {
+      return `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    function generateTimestamp(daysBack = 30) {
+      const now = new Date();
+      const past = new Date(now.getTime() - randomInt(0, daysBack * 24 * 60 * 60 * 1000));
+      past.setHours(randomInt(0, 23), randomInt(0, 59), randomInt(0, 59));
+      return past.toISOString();
+    }
+
+    function generateSession() {
+      const sessionId = generateSessionId();
+      const events = [];
+      const numEvents = randomInt(3, 12);
+      const device = weightedRandom(DEVICES, DEVICE_WEIGHTS);
+      const country = weightedRandom(COUNTRIES, COUNTRY_WEIGHTS);
+      const source = weightedRandom(TRAFFIC_SOURCES, SOURCE_WEIGHTS);
+      const browser = weightedRandom(BROWSERS, BROWSER_WEIGHTS);
+      const hasCampaign = Math.random() > 0.6;
+      const campaign = hasCampaign ? CAMPAIGNS[randomInt(0, CAMPAIGNS.length - 1)] : null;
+
+      // Page view
+      events.push({
+        id: generateId(),
+        event_name: "page_view",
+        device_type: device,
+        country,
+        traffic_source: source,
+        campaign_id: campaign?.id ?? null,
+        campaign_name: campaign?.name ?? null,
+        timestamp: generateTimestamp(),
+        browser_type: browser,
+        page_load_time: randomInt(800, 5000),
+        session_id: sessionId,
+      });
+
+      // Generate subsequent events
+      for (let i = 1; i < numEvents; i++) {
+        const eventName = EVENT_TYPES[randomInt(0, EVENT_TYPES.length - 1)];
+        const prevTime = new Date(events[events.length - 1].timestamp);
+        const newTime = new Date(prevTime.getTime() + randomInt(5000, 120000));
+
+        const event = {
+          id: generateId(),
+          event_name: eventName,
+          device_type: device,
+          country,
+          traffic_source: source,
+          campaign_id: campaign?.id ?? null,
+          campaign_name: campaign?.name ?? null,
+          timestamp: newTime.toISOString(),
+          browser_type: browser,
+          page_load_time: randomInt(800, 5000),
+          session_id: sessionId,
+        };
+
+        if (eventName === "scroll_depth") {
+          event.scroll_percentage = randomInt(10, 100);
+        } else if (eventName === "session_end") {
+          event.session_duration = randomInt(15, 600);
+          event.scroll_percentage = randomInt(20, 100);
+        } else if (eventName === "newsletter_signup") {
+          event.signup_status = ["success", "pending", "failed"][randomInt(0, 2)];
+        }
+
+        events.push(event);
+      }
+
+      return events;
+    }
+
+    function generateMockData(count = 1500) {
+      const allEvents = [];
+      const sessionsNeeded = Math.ceil(count / 5);
+      for (let i = 0; i < sessionsNeeded; i++) {
+        allEvents.push(...generateSession());
+      }
+      allEvents.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      return allEvents;
+    }
+
+    // ========== Analytics Calculations ==========
+    function calculateMetrics(events) {
+      const sessions = new Set(events.map(e => e.session_id));
+      const totalUsers = sessions.size;
+      const pageViews = events.filter(e => e.event_name === "page_view").length;
+
+      const presaleClicks = events.filter(e => e.event_name === "presale_click_cta").length;
+      const presaleCTR = pageViews > 0 ? (presaleClicks / pageViews) * 100 : 0;
+
+      const signups = events.filter(e => e.event_name === "newsletter_signup" && e.signup_status === "success").length;
+      const newsletterConversion = pageViews > 0 ? (signups / pageViews) * 100 : 0;
+
+      // Bounce rate
+      const sessionEvents = {};
+      events.forEach(e => {
+        if (!sessionEvents[e.session_id]) sessionEvents[e.session_id] = [];
+        sessionEvents[e.session_id].push(e.event_name);
+      });
+      let bounced = 0;
+      Object.values(sessionEvents).forEach(evts => {
+        const unique = new Set(evts);
+        if (unique.size === 1 && unique.has("page_view")) bounced++;
+      });
+      const bounceRate = sessions.size > 0 ? (bounced / sessions.size) * 100 : 0;
+
+      // Avg session duration
+      const durations = events.filter(e => e.event_name === "session_end" && e.session_duration).map(e => e.session_duration);
+      const avgSessionDuration = durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
+
+      // Scroll depth
+      const scrollEvents = events.filter(e => e.event_name === "scroll_depth" && e.scroll_percentage);
+      const buckets = { "0-25%": 0, "25-50%": 0, "50-75%": 0, "75-100%": 0 };
+      scrollEvents.forEach(e => {
+        const p = e.scroll_percentage;
+        if (p <= 25) buckets["0-25%"]++;
+        else if (p <= 50) buckets["25-50%"]++;
+        else if (p <= 75) buckets["50-75%"]++;
+        else buckets["75-100%"]++;
+      });
+      const scrollDepthDistribution = Object.entries(buckets).map(([range, count]) => ({
+        range,
+        count,
+        percentage: scrollEvents.length > 0 ? Math.round((count / scrollEvents.length) * 1000) / 10 : 0
+      }));
+
+      // Traffic source
+      const pageViewEvents = events.filter(e => e.event_name === "page_view");
+      const sourceCounts = {};
+      pageViewEvents.forEach(e => {
+        sourceCounts[e.traffic_source] = (sourceCounts[e.traffic_source] || 0) + 1;
+      });
+      const totalPV = pageViewEvents.length;
+      const trafficSourceDistribution = TRAFFIC_SOURCES.map(source => ({
+        source,
+        count: sourceCounts[source] || 0,
+        percentage: totalPV > 0 ? Math.round(((sourceCounts[source] || 0) / totalPV) * 1000) / 10 : 0
+      })).filter(s => s.count > 0);
+
+      // Funnel
+      const sessionsWithScroll50 = new Set(
+        events.filter(e => e.event_name === "scroll_depth" && (e.scroll_percentage || 0) >= 50).map(e => e.session_id)
+      ).size;
+      const funnelData = [
+        { step: "Page View", count: pageViews, percentage: 100 },
+        { step: "Scroll 50%+", count: sessionsWithScroll50, percentage: Math.round((sessionsWithScroll50 / (pageViews || 1)) * 1000) / 10 },
+        { step: "Presale Click", count: presaleClicks, percentage: Math.round((presaleClicks / (pageViews || 1)) * 1000) / 10 },
+        { step: "Newsletter Signup", count: signups, percentage: Math.round((signups / (pageViews || 1)) * 1000) / 10 },
+      ];
+
+      // Event counts
+      const eventCounts = EVENT_TYPES.map(name => ({
+        eventName: name,
+        count: events.filter(e => e.event_name === name).length,
+        percentage: Math.round((events.filter(e => e.event_name === name).length / (events.length || 1)) * 1000) / 10,
+        conversionRate: Math.round((events.filter(e => e.event_name === name).length / (pageViews || 1)) * 1000) / 10,
+      })).filter(e => e.count > 0);
+
+      // Campaign performance
+      const campaigns = {};
+      events.filter(e => e.event_name === "page_view" && e.campaign_name).forEach(e => {
+        if (!campaigns[e.campaign_name]) campaigns[e.campaign_name] = { impressions: 0, clicks: 0, conversions: 0 };
+        campaigns[e.campaign_name].impressions++;
+      });
+      events.filter(e => ["presale_click_cta", "online_shop_click", "documents_click"].includes(e.event_name) && e.campaign_name).forEach(e => {
+        if (campaigns[e.campaign_name]) campaigns[e.campaign_name].clicks++;
+      });
+      events.filter(e => e.event_name === "newsletter_signup" && e.signup_status === "success" && e.campaign_name).forEach(e => {
+        if (campaigns[e.campaign_name]) campaigns[e.campaign_name].conversions++;
+      });
+      const campaignPerformance = Object.entries(campaigns).map(([name, data]) => ({
+        name,
+        impressions: data.impressions,
+        clicks: data.clicks,
+        ctr: data.impressions > 0 ? Math.round((data.clicks / data.impressions) * 1000) / 10 : 0,
+        conversions: data.conversions,
+        conversionRate: data.clicks > 0 ? Math.round((data.conversions / data.clicks) * 1000) / 10 : 0,
+      })).sort((a, b) => b.impressions - a.impressions);
+
+      return {
+        totalUsers,
+        pageViews,
+        presaleCTR: Math.round(presaleCTR * 10) / 10,
+        newsletterConversion: Math.round(newsletterConversion * 10) / 10,
+        bounceRate: Math.round(bounceRate * 10) / 10,
+        avgSessionDuration,
+        scrollDepthDistribution,
+        trafficSourceDistribution,
+        funnelData,
+        eventCounts,
+        campaignPerformance,
+      };
+    }
+
+    function formatDuration(seconds) {
+      if (seconds < 60) return `${seconds}s`;
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m}m ${s}s`;
+    }
+
+    // ========== Rendering ==========
+    function renderDashboard(metrics) {
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <header class="bg-white shadow-sm ring-1 ring-slate-200">
+          <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <h1 class="text-2xl font-bold text-slate-900">Analytics Dashboard</h1>
+                <p class="mt-1 text-sm text-slate-500">Real-time insights into your website performance</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-1.5">
+                  <span class="relative flex h-2.5 w-2.5">
+                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500"></span>
+                  </span>
+                  <span class="text-sm font-medium text-green-700">Live</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 py-8">
+          <!-- KPI Cards -->
+          <section class="mb-8">
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              ${renderKPICard("Total Users", metrics.totalUsers.toLocaleString(), "blue", `<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>`)}
+              ${renderKPICard("Page Views", metrics.pageViews.toLocaleString(), "purple", `<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>`)}
+              ${renderKPICard("Presale CTR", `${metrics.presaleCTR}%`, "green", `<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2z" /></svg>`)}
+              ${renderKPICard("Newsletter Conv.", `${metrics.newsletterConversion}%`, "amber", `<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>`)}
+              ${renderKPICard("Avg. Session", formatDuration(metrics.avgSessionDuration), "blue", `<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`)}
+              ${renderKPICard("Bounce Rate", `${metrics.bounceRate}%`, "red", `<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>`)}
+            </div>
+          </section>
+
+          <!-- Funnel and Traffic -->
+          <section class="mb-8 grid gap-6 lg:grid-cols-2">
+            ${renderFunnel(metrics.funnelData)}
+            ${renderTrafficPie(metrics.trafficSourceDistribution)}
+          </section>
+
+          <!-- Scroll Depth -->
+          <section class="mb-8">
+            ${renderScrollDepth(metrics.scrollDepthDistribution)}
+          </section>
+
+          <!-- Campaign Table -->
+          <section class="mb-8">
+            ${renderCampaignTable(metrics.campaignPerformance)}
+          </section>
+
+          <!-- Events Table -->
+          <section class="mb-8">
+            ${renderEventsTable(metrics.eventCounts)}
+          </section>
+        </main>
+
+        <footer class="border-t border-slate-200 bg-white">
+          <div class="max-w-7xl mx-auto px-4 py-6">
+            <p class="text-center text-sm text-slate-500">Analytics Dashboard - Mock Data Demo</p>
+          </div>
+        </footer>
+      `;
+
+      // Initialize chart
+      initScrollChart(metrics.scrollDepthDistribution);
+      initTrafficChart(metrics.trafficSourceDistribution);
+    }
+
+    function renderKPICard(title, value, color, icon) {
+      const colors = {
+        blue: { bg: "bg-blue-50", icon: "text-blue-500" },
+        purple: { bg: "bg-purple-50", icon: "text-purple-500" },
+        green: { bg: "bg-green-50", icon: "text-green-500" },
+        amber: { bg: "bg-amber-50", icon: "text-amber-500" },
+        red: { bg: "bg-red-50", icon: "text-red-500" },
+      };
+      const c = colors[color];
+      return `
+        <div class="group relative overflow-hidden rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 hover:shadow-md transition-all">
+          <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full ${c.bg} opacity-50"></div>
+          <div class="relative flex items-start justify-between">
+            <div class="flex-1">
+              <p class="text-sm font-medium text-slate-500">${title}</p>
+              <p class="mt-2 text-3xl font-bold text-slate-900">${value}</p>
+            </div>
+            <div class="rounded-lg ${c.bg} p-3">
+              <div class="${c.icon}">${icon}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderFunnel(data) {
+      const maxCount = data[0]?.count || 1;
+      return `
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 animate-fade-in">
+          <h3 class="text-lg font-semibold text-slate-900">Conversion Funnel</h3>
+          <p class="mt-1 text-sm text-slate-500">User journey through conversion steps</p>
+          <div class="mt-6 space-y-4">
+            ${data.map((step, i) => `
+              <div class="relative">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium text-slate-700">${step.step}</span>
+                  <div class="flex items-center gap-3">
+                    <span class="text-sm font-semibold text-slate-900">${step.count.toLocaleString()}</span>
+                    <span class="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">${step.percentage}%</span>
+                  </div>
+                </div>
+                <div class="mt-2 h-8 w-full overflow-hidden rounded-lg bg-slate-100">
+                  <div class="h-full rounded-lg ${i === data.length - 1 ? 'bg-gradient-to-r from-green-500 to-green-400' : 'bg-gradient-to-r from-blue-500 to-blue-400'} transition-all duration-500" style="width: ${Math.max((step.count / maxCount) * 100, 5)}%"></div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderTrafficPie(data) {
+      return `
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 animate-fade-in">
+          <h3 class="text-lg font-semibold text-slate-900">Traffic Sources</h3>
+          <p class="mt-1 text-sm text-slate-500">Distribution by acquisition channel</p>
+          <div class="mt-6 h-64">
+            <canvas id="trafficChart"></canvas>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderScrollDepth(data) {
+      return `
+        <div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 animate-fade-in">
+          <h3 class="text-lg font-semibold text-slate-900">Scroll Depth</h3>
+          <p class="mt-1 text-sm text-slate-500">Distribution of user scroll behavior</p>
+          <div class="mt-6 h-64">
+            <canvas id="scrollChart"></canvas>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderCampaignTable(data) {
+      if (!data.length) return '<div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><h3 class="text-lg font-semibold">Campaign Performance</h3><p class="text-slate-500">No data available</p></div>';
+      return `
+        <div class="rounded-xl bg-white shadow-sm ring-1 ring-slate-200 animate-fade-in">
+          <div class="border-b border-slate-200 px-6 py-4">
+            <h3 class="text-lg font-semibold text-slate-900">Campaign Performance</h3>
+            <p class="mt-1 text-sm text-slate-500">Analytics by marketing campaign</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="whitespace-nowrap px-6 py-3 text-left text-xs font-medium uppercase text-slate-500">Campaign</th>
+                  <th class="whitespace-nowrap px-6 py-3 text-right text-xs font-medium uppercase text-slate-500">Impressions</th>
+                  <th class="whitespace-nowrap px-6 py-3 text-right text-xs font-medium uppercase text-slate-500">Clicks</th>
+                  <th class="whitespace-nowrap px-6 py-3 text-right text-xs font-medium uppercase text-slate-500">CTR</th>
+                  <th class="whitespace-nowrap px-6 py-3 text-right text-xs font-medium uppercase text-slate-500">Conversions</th>
+                  <th class="whitespace-nowrap px-6 py-3 text-right text-xs font-medium uppercase text-slate-500">Conv. Rate</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                ${data.map((row, i) => `
+                  <tr class="hover:bg-slate-50">
+                    <td class="whitespace-nowrap px-6 py-4">
+                      <div class="flex items-center gap-3">
+                        <div class="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold ${i === 0 ? 'bg-purple-100 text-purple-700' : i === 1 ? 'bg-blue-100 text-blue-700' : i === 2 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}">${i + 1}</div>
+                        <span class="text-sm font-medium text-slate-900">${row.name}</span>
+                      </div>
+                    </td>
+                    <td class="whitespace-nowrap px-6 py-4 text-right text-sm text-slate-600">${row.impressions.toLocaleString()}</td>
+                    <td class="whitespace-nowrap px-6 py-4 text-right text-sm text-slate-600">${row.clicks.toLocaleString()}</td>
+                    <td class="whitespace-nowrap px-6 py-4 text-right"><span class="inline-flex rounded-full ${row.ctr > 5 ? 'bg-green-100 text-green-700' : row.ctr > 2 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'} px-2.5 py-0.5 text-sm font-medium">${row.ctr}%</span></td>
+                    <td class="whitespace-nowrap px-6 py-4 text-right text-sm text-slate-600">${row.conversions.toLocaleString()}</td>
+                    <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium ${row.conversionRate > 10 ? 'text-green-600' : row.conversionRate > 5 ? 'text-amber-600' : 'text-slate-600'}">${row.conversionRate}%</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderEventsTable(data) {
+      if (!data.length) return '<div class="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><h3 class="text-lg font-semibold">Events Overview</h3><p class="text-slate-500">No data available</p></div>';
+      const labels = {
+        page_view: "Page View",
+        presale_click_cta: "Presale Click",
+        online_shop_click: "Online Shop Click",
+        documents_click: "Documents Click",
+        newsletter_signup: "Newsletter Signup",
+        social_click: "Social Click",
+        trustpilot_click: "Trustpilot Click",
+        scroll_depth: "Scroll Depth",
+        session_end: "Session End",
+      };
+      return `
+        <div class="rounded-xl bg-white shadow-sm ring-1 ring-slate-200 animate-fade-in">
+          <div class="border-b border-slate-200 px-6 py-4">
+            <h3 class="text-lg font-semibold text-slate-900">Events Overview</h3>
+            <p class="mt-1 text-sm text-slate-500">Distribution of tracked events</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="whitespace-nowrap px-6 py-3 text-left text-xs font-medium uppercase text-slate-500">Event Name</th>
+                  <th class="whitespace-nowrap px-6 py-3 text-right text-xs font-medium uppercase text-slate-500">Count</th>
+                  <th class="whitespace-nowrap px-6 py-3 text-right text-xs font-medium uppercase text-slate-500">% of Total</th>
+                  <th class="whitespace-nowrap px-6 py-3 text-right text-xs font-medium uppercase text-slate-500">Conversion Rate</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                ${data.map(row => `
+                  <tr class="hover:bg-slate-50">
+                    <td class="whitespace-nowrap px-6 py-4">
+                      <span class="text-sm font-medium text-slate-900">${labels[row.eventName] || row.eventName}</span>
+                    </td>
+                    <td class="whitespace-nowrap px-6 py-4 text-right text-sm text-slate-600">${row.count.toLocaleString()}</td>
+                    <td class="whitespace-nowrap px-6 py-4 text-right"><span class="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-sm font-medium text-slate-700">${row.percentage}%</span></td>
+                    <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium ${row.conversionRate > 5 ? 'text-green-600' : row.conversionRate > 1 ? 'text-amber-600' : 'text-slate-600'}">${row.conversionRate}%</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function initScrollChart(data) {
+      const ctx = document.getElementById('scrollChart');
+      if (!ctx) return;
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.map(d => d.range),
+          datasets: [{
+            label: 'Percentage',
+            data: data.map(d => d.percentage),
+            backgroundColor: '#8B5CF6',
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: '#E2E8F0' }, ticks: { callback: v => v + '%' } },
+            y: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    function initTrafficChart(data) {
+      const ctx = document.getElementById('trafficChart');
+      if (!ctx) return;
+      new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: data.map(d => d.source.charAt(0).toUpperCase() + d.source.slice(1)),
+          datasets: [{
+            data: data.map(d => d.count),
+            backgroundColor: ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#6366F1'],
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom' }
+          }
+        }
+      });
+    }
+
+    // ========== Initialize ==========
+    const mockData = generateMockData(1500);
+    const metrics = calculateMetrics(mockData);
+    renderDashboard(metrics);
+  </script>
+
+<script>
+/**
+ * Iframe 元素高亮注入脚本
+ * 需要在目标网站中引入此脚本来支持跨域 iframe 高亮功能
+ *
+ * 使用方法：
+ * 1. 将此脚本添加到目标网站的 HTML 中
+ * 2. 或通过浏览器扩展、用户脚本等方式注入
+ */
+
+(function () {
+  "use strict";
+
+  // 检查是否在 iframe 中
+  if (window.self === window.top) {
+    return; // 不在 iframe 中，不执行
+  }
+
+  // 检查是否已经初始化过
+  if (window.__iframeHighlightInitialized) {
+    return;
+  }
+  window.__iframeHighlightInitialized = true;
+  console.log("Iframe 高亮脚本已加载");
+
+  // 创建高亮覆盖层
+  var overlay = document.createElement("div");
+  overlay.id = "iframe-highlight-overlay";
+  overlay.style.cssText = "\n    position: fixed;\n    top: 0;\n    left: 0;\n    width: 100vw;\n    height: 100vh;\n    pointer-events: none;\n    z-index: 999999;\n    overflow: hidden;\n  ";
+
+  // 创建悬停高亮框（虚线边框）
+  var highlightBox = document.createElement("div");
+  highlightBox.id = "iframe-highlight-box";
+  highlightBox.style.cssText = "\n    position: absolute;\n    border: 2px dashed #007AFF;\n    background: rgba(0, 122, 255, 0.08);\n    pointer-events: none;\n    display: none;\n    transition: all 0.1s ease;\n    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);\n    border-radius: 2px;\n  ";
+
+  // 创建选中节点的常驻高亮框（实线边框）
+  var selectedBox = document.createElement("div");
+  selectedBox.id = "iframe-selected-box";
+  selectedBox.style.cssText = "\n    position: absolute;\n    border: 2px solid #007AFF;\n    pointer-events: none;\n    display: none;\n    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 8px rgba(255, 107, 53, 0.4);\n    border-radius: 2px;\n    z-index: 1000000;\n  ";
+
+  // 创建悬停标签显示
+  var tagLabel = document.createElement("div");
+  tagLabel.id = "iframe-tag-label";
+  tagLabel.style.cssText = "\n    position: absolute;\n    background: #007AFF;\n    color: white;\n    padding: 2px 6px;\n    font-size: 11px;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n    border-radius: 2px;\n    pointer-events: none;\n    display: none;\n    white-space: nowrap;\n    z-index: 1000001;\n    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);\n    font-weight: 500;\n  ";
+
+  // 创建选中节点标签
+  var selectedLabel = document.createElement("div");
+  selectedLabel.id = "iframe-selected-label";
+  selectedLabel.style.cssText = "\n    position: absolute;\n    background: #007AFF;\n    color: white;\n    padding: 3px 8px;\n    font-size: 11px;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n    border-radius: 3px;\n    pointer-events: none;\n    display: none;\n    white-space: nowrap;\n    z-index: 1000002;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);\n    font-weight: 600;\n  ";
+  overlay.appendChild(highlightBox);
+  overlay.appendChild(selectedBox);
+  overlay.appendChild(tagLabel);
+  overlay.appendChild(selectedLabel);
+  document.body.appendChild(overlay);
+
+  // 存储当前选中的元素
+  var selectedElement = null;
+  var highlightEnabled = false;
+
+  // 更新选中元素的高亮显示
+  function updateSelectedHighlight(element) {
+    console.log("updateSelectedHighlight called with:", element);
+    if (!element) {
+      selectedBox.style.display = "none";
+      selectedLabel.style.display = "none";
+      selectedElement = null;
+      console.log("Cleared selected highlight");
+      return;
+    }
+    selectedElement = element;
+    var rect = element.getBoundingClientRect();
+    console.log("Selected element rect:", rect);
+
+    // 更新选中高亮框位置
+    selectedBox.style.display = "block";
+    selectedBox.style.left = "".concat(rect.left - 2, "px");
+    selectedBox.style.top = "".concat(rect.top - 2, "px");
+    selectedBox.style.width = "".concat(rect.width + 4, "px");
+    selectedBox.style.height = "".concat(rect.height + 4, "px");
+
+    // 更新选中标签位置和内容
+    selectedLabel.style.display = "block";
+    selectedLabel.textContent = "\u2713 <".concat(element.tagName.toLowerCase(), ">");
+
+    // 计算标签位置，确保不超出视窗
+    var labelTop = rect.top - 28;
+    var labelLeft = rect.left;
+
+    // 如果标签会超出顶部，显示在元素下方
+    if (labelTop < 5) {
+      labelTop = rect.bottom + 5;
+    }
+
+    // 如果标签会超出右侧，向左调整
+    var labelWidth = selectedLabel.offsetWidth || 100; // 预估宽度
+    if (labelLeft + labelWidth > window.innerWidth - 10) {
+      labelLeft = window.innerWidth - labelWidth - 10;
+    }
+    selectedLabel.style.left = "".concat(Math.max(5, labelLeft), "px");
+    selectedLabel.style.top = "".concat(labelTop, "px");
+    console.log("Selected highlight positioned at:", {
+      left: selectedBox.style.left,
+      top: selectedBox.style.top,
+      width: selectedBox.style.width,
+      height: selectedBox.style.height
+    });
+  }
+  function getElementSelector(element) {
+    if (!(element instanceof Element)) throw new Error('Argument must be a DOM element');
+    var segments = [];
+    var current = element;
+    while (current !== document.documentElement) {
+      var selector = '';
+      // 优先检查唯一ID
+      if (current.id && document.querySelectorAll("#".concat(current.id)).length === 1) {
+        segments.unshift("#".concat(current.id));
+        break; // ID唯一，无需继续向上
+      }
+
+      // 生成类名选择器（取第一个有效类名）
+      var classes = Array.from(current.classList).filter(function (c) {
+        return !c.startsWith('js-');
+      });
+      var className = classes.length > 0 ? ".".concat(classes[0]) : '';
+
+      // 生成位置索引（nth-child）
+      var tag = current.tagName.toLowerCase();
+      if (!className) {
+        var siblings = Array.from(current.parentNode.children);
+        var index = siblings.findIndex(function (el) {
+          return el === current;
+        }) + 1;
+        selector = "".concat(tag, ":nth-child(").concat(index, ")");
+      } else {
+        selector = className;
+      }
+      segments.unshift(selector);
+      current = current.parentElement;
+    }
+
+    // 处理根元素
+    if (current === document.documentElement) {
+      segments.unshift('html');
+    }
+    return segments.join(' > ');
+  }
+
+  // 获取元素文本内容
+  function getElementText(element) {
+    var _element$textContent;
+    if (element.tagName === "INPUT") {
+      return element.value || element.placeholder || "";
+    }
+    if (element.tagName === "TEXTAREA") {
+      return element.value || element.placeholder || "";
+    }
+    var text = ((_element$textContent = element.textContent) === null || _element$textContent === void 0 ? void 0 : _element$textContent.trim()) || "";
+    return text.length > 50 ? text.substring(0, 50) + "..." : text;
+  }
+
+  // 获取元素属性信息
+  function getElementAttributes(element) {
+    var attrs = {};
+    for (var i = 0; i < element.attributes.length; i++) {
+      var attr = element.attributes[i];
+      attrs[attr.name] = attr.value;
+    }
+    return attrs;
+  }
+
+  // 鼠标悬停事件处理
+  function handleMouseOver(e) {
+    if (!highlightEnabled) return;
+    var target = e.target;
+    if (!target || target === overlay || target === highlightBox || target === tagLabel || target === selectedBox || target === selectedLabel) {
+      return;
+    }
+
+    // 避免高亮 html 和 body 元素
+    if (target === document.documentElement || target === document.body) {
+      return;
+    }
+
+    // 如果是已选中的元素，不显示悬停高亮
+    if (target === selectedElement) {
+      highlightBox.style.display = "none";
+      tagLabel.style.display = "none";
+      return;
+    }
+    var rect = target.getBoundingClientRect();
+    var selector = getElementSelector(target);
+    var text = getElementText(target);
+    var attributes = getElementAttributes(target);
+
+    // 更新悬停高亮框位置
+    highlightBox.style.display = "block";
+    highlightBox.style.left = "".concat(rect.left - 2, "px");
+    highlightBox.style.top = "".concat(rect.top - 2, "px");
+    highlightBox.style.width = "".concat(rect.width + 4, "px");
+    highlightBox.style.height = "".concat(rect.height + 4, "px");
+
+    // 更新标签位置和内容
+    tagLabel.style.display = "block";
+    tagLabel.textContent = "<".concat(target.tagName.toLowerCase(), ">");
+
+    // 计算标签位置，确保不超出视窗
+    var labelTop = rect.top - 22;
+    var labelLeft = rect.left;
+
+    // 如果标签会超出顶部，显示在元素下方
+    if (labelTop < 0) {
+      labelTop = rect.bottom + 5;
+    }
+
+    // 如果标签会超出右侧，向左调整
+    if (labelLeft + tagLabel.offsetWidth > window.innerWidth) {
+      labelLeft = window.innerWidth - tagLabel.offsetWidth - 5;
+    }
+    tagLabel.style.left = "".concat(Math.max(0, labelLeft), "px");
+    tagLabel.style.top = "".concat(labelTop, "px");
+
+    // 发送消息到父窗口
+    var elementInfo = {
+      tagName: target.tagName.toLowerCase(),
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y
+      },
+      selector: selector,
+      text: text,
+      attributes: attributes,
+      url: window.location.href,
+      path: window.location.pathname,
+      timestamp: Date.now()
+    };
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-hover",
+        data: elementInfo,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 鼠标离开事件处理
+  function handleMouseOut(e) {
+    if (!highlightEnabled) return;
+    var relatedTarget = e.relatedTarget;
+
+    // 如果鼠标移动到高亮相关元素上，不隐藏高亮
+    if (relatedTarget && (relatedTarget === highlightBox || relatedTarget === tagLabel || relatedTarget === overlay || relatedTarget === selectedBox || relatedTarget === selectedLabel)) {
+      return;
+    }
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-hover",
+        data: null,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 点击事件处理
+  function handleClick(e) {
+    var target = e.target;
+    if (!target || target === overlay || target === highlightBox || target === tagLabel || target === selectedBox || target === selectedLabel) {
+      return;
+    }
+
+    // 避免处理 html 和 body 元素
+    if (target === document.documentElement || target === document.body) {
+      return;
+    }
+
+    // 检查是否是交互元素，这些元素需要保留默认行为
+    var isInteractiveElement = ['input', 'textarea', 'select', 'button', 'a'].includes(target.tagName.toLowerCase());
+
+    // 如果高亮功能启用，对于非交互元素阻止默认行为和事件传播
+    if (highlightEnabled) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    var rect = target.getBoundingClientRect();
+    var selector = getElementSelector(target);
+    var text = getElementText(target);
+    var attributes = getElementAttributes(target);
+    console.log("Element clicked:", {
+      tagName: target.tagName,
+      selector: selector,
+      rect: rect
+    });
+
+    // 立即更新选中高亮
+    updateSelectedHighlight(target);
+
+    // 隐藏悬停高亮，因为现在是选中状态
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    var elementInfo = {
+      tagName: target.tagName.toLowerCase(),
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y
+      },
+      selector: selector,
+      text: text,
+      attributes: attributes,
+      url: window.location.href,
+      path: window.location.pathname,
+      timestamp: Date.now()
+    };
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-click",
+        data: elementInfo,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 监听来自父窗口的消息
+  function handleParentMessage(event) {
+    console.log("Received message from parent:", event.data);
+    if (event.data.type === "iframe-highlight-toggle") {
+      var enabled = event.data.enabled;
+      console.log("Highlight toggle:", enabled);
+      if (enabled) {
+        enableHighlight();
+      } else {
+        disableHighlight();
+      }
+    } else if (event.data.type === "enable-iframe-highlight") {
+      console.log("Enable iframe highlight");
+      enableHighlight();
+    } else if (event.data.type === "disable-iframe-highlight") {
+      console.log("Disable iframe highlight");
+      disableHighlight();
+    } else if (event.data.type === "toggle-iframe-highlight") {
+      var _enabled = event.data.enabled !== undefined ? event.data.enabled : !highlightEnabled;
+      console.log("Toggle iframe highlight to:", _enabled);
+      if (_enabled) {
+        enableHighlight();
+      } else {
+        disableHighlight();
+      }
+    } else if (event.data.type === "update-selected-element") {
+      var selector = event.data.selector;
+      console.log("Update selected element with selector:", selector);
+      if (selector) {
+        try {
+          var element = document.querySelector(selector);
+          console.log("Found element by selector:", element);
+          updateSelectedHighlight(element);
+        } catch (error) {
+          console.warn("Failed to select element:", error);
+          updateSelectedHighlight(null);
+        }
+      } else {
+        updateSelectedHighlight(null);
+      }
+    } else if (event.data.type === "clear-selected-element") {
+      console.log("Clear selected element");
+      updateSelectedHighlight(null);
+    }
+  }
+
+  // 启用高亮功能
+  function enableHighlight() {
+    console.log("Enabling highlight");
+    document.addEventListener("mouseover", handleMouseOver, true);
+    document.addEventListener("mouseout", handleMouseOut, true);
+    document.addEventListener("click", handleClick, true);
+    highlightEnabled = true;
+    overlay.style.display = "block";
+  }
+
+  // 禁用高亮功能
+  function disableHighlight() {
+    console.log("Disabling highlight");
+    highlightEnabled = false;
+    // 保持事件监听器，但通过 highlightEnabled 变量控制行为
+    // 这样可以保留选中状态的显示
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    // 不隐藏 selectedBox 和 selectedLabel，保留选中状态
+  }
+
+  // 完全禁用高亮功能（移除所有监听器）
+  function fullyDisableHighlight() {
+    console.log("Fully disabling highlight");
+    highlightEnabled = false;
+    document.removeEventListener("mouseover", handleMouseOver, true);
+    document.removeEventListener("mouseout", handleMouseOut, true);
+    document.removeEventListener("click", handleClick, true);
+    overlay.style.display = "none";
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    selectedBox.style.display = "none";
+    selectedLabel.style.display = "none";
+  }
+
+  // 添加事件监听
+  enableHighlight();
+  window.addEventListener("message", handleParentMessage);
+
+  // 暴露全局函数供外部调用
+  window.__iframeHighlightControl = {
+    enable: enableHighlight,
+    disable: disableHighlight,
+    fullyDisable: fullyDisableHighlight,
+    isEnabled: function isEnabled() {
+      return highlightEnabled;
+    },
+    getSelectedElement: function getSelectedElement() {
+      return selectedElement;
+    },
+    updateSelected: updateSelectedHighlight,
+    // 通过消息发送开关控制
+    sendToggleMessage: function sendToggleMessage(enabled) {
+      window.parent.postMessage({
+        type: 'iframe-highlight-status',
+        enabled: enabled || highlightEnabled,
+        source: 'iframe-highlight-injector'
+      }, '*');
+    }
+  };
+
+  // 通知父窗口脚本已加载
+  try {
+    window.parent.postMessage({
+      type: "iframe-highlight-ready",
+      data: {
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: Date.now()
+      },
+      source: "iframe-highlight-injector"
+    }, "*");
+  } catch (error) {
+    console.warn("无法发送就绪消息到父窗口:", error);
+  }
+
+  // 清理函数
+  window.__iframeHighlightCleanup = function () {
+    fullyDisableHighlight();
+    window.removeEventListener("message", handleParentMessage);
+    if (overlay.parentElement) {
+      overlay.parentElement.removeChild(overlay);
+    }
+    delete window.__iframeHighlightInitialized;
+    delete window.__iframeHighlightCleanup;
+  };
+})();
+
+</script>
+</body>
+</html>
