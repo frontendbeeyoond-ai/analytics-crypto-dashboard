@@ -160,10 +160,15 @@ export default function GTMEventsPage() {
             </div>
 
             {events.length > 0 ? (
-              events.map((ev) => (
-                <EventBar key={ev.name} name={ev.name} count={ev.count} max={maxCount} />
+              events.map((ev, index) => (
+                <EventBar
+                  key={`${ev.name}-${index}`}
+                  name={ev.name}
+                  count={ev.count}
+                  max={maxCount}
+                />
               ))
-            ) : (
+                          ) : (
               <p className="py-8 text-center text-sm" style={{ color: TEXT_MUTED }}>No event data available</p>
             )}
           </div>
