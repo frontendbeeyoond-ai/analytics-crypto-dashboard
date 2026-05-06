@@ -326,3 +326,19 @@ export interface PageViewAnalyticsData {
   // Country breakdown
   countryBreakdown: NewsletterBreakdownRow[];
 }
+
+// ============== Website Analytics Types ==============
+
+export interface WebsiteAnalyticsData {
+  kpis: {
+    totalPageviews: number;
+    totalSessions: number;
+    avgBounceRate: number;
+    avgDuration: number;
+  };
+  trafficOverTime: { date: string; pageviews: number; sessions: number }[];
+  languageBreakdown: { language: string; sessions: number; percentage: number }[];
+  topPages: { path: string; pageviews: number; users: number; percentage: number }[];
+  deviceBreakdown: { device: string; sessions: number; percentage: number }[];
+  countryBreakdown: { country: string; sessions: number; percentage: number }[];
+}

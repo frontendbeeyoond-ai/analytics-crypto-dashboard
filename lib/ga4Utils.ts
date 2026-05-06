@@ -1463,3 +1463,169 @@ export async function fetchTrustpilotDetail(filters: FilterParams): Promise<Trus
     eventsOverTime,
   };
 }
+
+// Fetch comprehensive Website Analytics data
+export async function fetchWebsiteAnalytics(filters: FilterParams) {
+  const client = getAnalyticsClient();
+  const propertyId = getPropertyId();
+  const { startDate, endDate } = buildDateRange(filters);
+
+  const [kpiResult, trafficResult, langResult, pagesResult, deviceResult, countryResult] =
+    await Promise.all([
+      // KPIs for selected range
+      settle(
+        client.runReport({
+          property: `properties/${propertyId}`,
+          dateRanges: [{ startDate, endDate }],
+          metrics: [
+            { name: "screenPageViews" },
+            { name: "sessions" },
+            { name: "bounceRate" },
+            { name: "averageSessionDuration" },
+          ],
+        }),
+        [null] as any
+      ),
+      // Traffic over time (daily) for selected range
+      settle(
+        client.runReport({
+          property: `properties/${propertyId}`,
+          dateRanges: [{ startDate, endDate }],
+          dimensions: [{ name: "date" }],
+          metrics: [{ name: "screenPageViews" }, { name: "sessions" }],
+          orderBys: [{ dimension: { dimensionName: "date" } }],
+        }),
+        [null] as any
+      ),
+      // Language breakdown — always last 30 days
+      settle(
+        client.runReport({
+          property: `properties/${propertyId}`,
+          dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+          dimensions: [{ name: "language" }],
+          metrics: [{ name: "sessions" }],
+          orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+          limit: 20,
+        }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        [null] as any
+      ),
+      // Top pages for selected range
+      settle(
+        client.runReport({
+          property: `properties/${propertyId}`,
+          dateRanges: [{ startDate, endDate }],
+          dimensions: [{ name: "pagePath" }],
+          metrics: [{ name: "screenPageViews" }, { name: "totalUsers" }],
+          orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
+          limit: 15,
+        }),
+        [null] as any
+      ),
+      // Device breakdown — always last 30 days
+      settle(
+        client.runReport({
+          property: `properties/${propertyId}`,
+          dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+          dimensions: [{ name: "deviceCategory" }],
+          metrics: [{ name: "sessions" }],
+          orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+        }),
+        [null] as any
+      ),
+      // Country breakdown — always last 30 days
+      settle(
+        client.runReport({
+          property: `properties/${propertyId}`,
+          dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+          dimensions: [{ name: "country" }],
+          metrics: [{ name: "sessions" }],
+          orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+          limit: 10,
+        }),
+        [null] as any
+      ),
+    ]);
+
+  // KPIs
+  const kpiRow = kpiResult[0]?.rows?.[0]?.metricValues;
+  const totalPageviews = parseInt(kpiRow?.[0]?.value || "0", 10);
+  const totalSessions  = parseInt(kpiRow?.[1]?.value || "0", 10);
+  const avgBounceRate  = Math.round(parseFloat(kpiRow?.[2]?.value || "0") * 1000) / 10;
+  const avgDuration    = Math.round(parseFloat(kpiRow?.[3]?.value || "0"));
+
+  // Traffic over time
+  const trafficOverTime = (trafficResult[0]?.rows || []).map((row: any) => ({
+    date:      formatDate(row.dimensionValues?.[0]?.value || ""),
+    pageviews: parseInt(row.metricValues?.[0]?.value || "0", 10),
+    sessions:  parseInt(row.metricValues?.[1]?.value || "0", 10),
+  }));
+
+  // Language breakdown grouped: EN, DE, Other
+  const langRows = (langResult?.[0]?.rows || []).map((row: any) => ({
+    lang:     (row.dimensionValues?.[0]?.value || "").toLowerCase(),
+    sessions: parseInt(row.metricValues?.[0]?.value || "0", 10),
+  }));
+  const totalLang  = langRows.reduce((s: number, r: any) => s + r.sessions, 0);
+  const enSess     = langRows.filter((r: any) => r.lang.startsWith("en")).reduce((s: number, r: any) => s + r.sessions, 0);
+  const deSess     = langRows.filter((r: any) => r.lang.startsWith("de")).reduce((s: number, r: any) => s + r.sessions, 0);
+  const otherSess  = totalLang - enSess - deSess;
+  const pct = (n: number) => totalLang > 0 ? Math.round((n / totalLang) * 1000) / 10 : 0;
+  const languageBreakdown = [
+    { language: "EN",    sessions: enSess,    percentage: pct(enSess) },
+    { language: "DE",    sessions: deSess,    percentage: pct(deSess) },
+    ...(otherSess > 0 ? [{ language: "Other", sessions: otherSess, percentage: pct(otherSess) }] : []),
+  ];
+
+  // Top pages (exclude (not set))
+  const pageRows = (pagesResult[0]?.rows || []).filter((r: any) => {
+    const p = r.dimensionValues?.[0]?.value;
+    return p && p !== "(not set)";
+  });
+  const totalPV = pageRows.reduce((s: number, r: any) => s + parseInt(r.metricValues?.[0]?.value || "0", 10), 0);
+  const topPages = pageRows.slice(0, 10).map((row: any) => {
+    const pv = parseInt(row.metricValues?.[0]?.value || "0", 10);
+    return {
+      path:       row.dimensionValues?.[0]?.value as string,
+      pageviews:  pv,
+      users:      parseInt(row.metricValues?.[1]?.value || "0", 10),
+      percentage: totalPV > 0 ? Math.round((pv / totalPV) * 1000) / 10 : 0,
+    };
+  });
+
+  // Device breakdown
+  const devRows = deviceResult[0]?.rows || [];
+  const totalDev = devRows.reduce((s: number, r: any) => s + parseInt(r.metricValues?.[0]?.value || "0", 10), 0);
+  const deviceBreakdown = devRows.map((row: any) => {
+    const s = parseInt(row.metricValues?.[0]?.value || "0", 10);
+    return {
+      device:     row.dimensionValues?.[0]?.value as string,
+      sessions:   s,
+      percentage: totalDev > 0 ? Math.round((s / totalDev) * 1000) / 10 : 0,
+    };
+  });
+
+  // Country breakdown (exclude (not set))
+  const cRows = (countryResult[0]?.rows || []).filter((r: any) => {
+    const c = r.dimensionValues?.[0]?.value;
+    return c && c !== "(not set)";
+  });
+  const totalCoun = cRows.reduce((s: number, r: any) => s + parseInt(r.metricValues?.[0]?.value || "0", 10), 0);
+  const countryBreakdown = cRows.slice(0, 10).map((row: any) => {
+    const s = parseInt(row.metricValues?.[0]?.value || "0", 10);
+    return {
+      country:    row.dimensionValues?.[0]?.value as string,
+      sessions:   s,
+      percentage: totalCoun > 0 ? Math.round((s / totalCoun) * 1000) / 10 : 0,
+    };
+  });
+
+  return {
+    kpis: { totalPageviews, totalSessions, avgBounceRate, avgDuration },
+    trafficOverTime,
+    languageBreakdown,
+    topPages,
+    deviceBreakdown,
+    countryBreakdown,
+  };
+}
