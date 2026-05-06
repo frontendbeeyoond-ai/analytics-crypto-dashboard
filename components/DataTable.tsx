@@ -124,7 +124,9 @@ export default function DataTable({ data, filters }: DataTableProps) {
             {data.map((row) => {
               const detailBase: Record<string, string> = {
                 newsletter_signup: "/dashboard/newsletter",
-                page_view: "/dashboard/pageview",
+                page_view: "/dashboard/events/page_view",
+                scroll_depth: "/dashboard/events/scroll_depth",
+                social_click: "/dashboard/events/social_click",
                 presale_click_cta: "/dashboard/presale",
                 online_shop_click: "/dashboard/onlineshop",
                 documents_click: "/dashboard/documents",

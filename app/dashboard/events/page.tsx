@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import DataTable from "@/components/DataTable";
 import { EventCountData } from "@/types/analytics";
 
@@ -22,16 +23,26 @@ const EVENT_COLORS: Record<string, string> = {
   session_end:       "#6b7280",
 };
 
+const EVENT_DETAIL_LINKS: Record<string, string> = {
+  page_view:   "/dashboard/events/page_view",
+  scroll_depth: "/dashboard/events/scroll_depth",
+};
+
 function getEventColor(name: string) {
   return EVENT_COLORS[name] ?? "#60a5fa";
 }
 
 function EventBar({ name, count, max }: { name: string; count: number; max: number }) {
-  const pct   = max > 0 ? (count / max) * 100 : 0;
-  const color = getEventColor(name);
+  const pct    = max > 0 ? (count / max) * 100 : 0;
+  const color  = getEventColor(name);
+  const href   = EVENT_DETAIL_LINKS[name];
+
+  const nameCell =  <div className="w-44 shrink-0 text-sm font-medium text-white truncate" title={name}>{name}</div>
+
+
   return (
     <div className="flex items-center gap-3 py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
-      <div className="w-44 shrink-0 text-sm font-medium text-white truncate" title={name}>{name}</div>
+      {nameCell}
       <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "#1f2937" }}>
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
       </div>

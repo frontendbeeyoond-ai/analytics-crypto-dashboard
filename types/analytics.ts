@@ -308,6 +308,14 @@ export interface GlobalParamsData {
 
 // ============== Page View Detail Types ==============
 
+export interface PageTitleRow {
+  title: string;
+  eventCount: number;
+  totalUsers: number;
+  percentage: number;
+  avgTimeSec: number;
+}
+
 export interface PageViewAnalyticsData {
   totalEvents: number;
   totalUsers: number;
@@ -325,6 +333,35 @@ export interface PageViewAnalyticsData {
   eventsOverTime: ChartDataPoint[];
   // Country breakdown
   countryBreakdown: NewsletterBreakdownRow[];
+  // Page title breakdown
+  pageTitleBreakdown: PageTitleRow[];
+}
+
+// ============== Scroll Depth Detail Types ==============
+
+export interface ScrollDepthDetailData {
+  totalEvents: number;
+  totalUsers: number;
+  activeUsers: number;
+  eventsPerActiveUser: number;
+  eventsLast30Min: number;
+  countryBreakdown: NewsletterBreakdownRow[];
+}
+
+// ============== Social Click Detail Types ==============
+
+export interface SocialClickAnalyticsData {
+  totalEvents: number;
+  totalUsers: number;
+  activeUsers: number;
+  eventsPerActiveUser: number;
+  eventsPerSession: number;
+  sessions: number;
+  eventsLast30Min: number;
+  eventsOverTime: ChartDataPoint[];
+  countryBreakdown: NewsletterBreakdownRow[];
+  clickLocationBreakdown: NewsletterBreakdownRow[];
+  destinationUrlBreakdown: NewsletterBreakdownRow[];
 }
 
 // ============== Website Analytics Types ==============

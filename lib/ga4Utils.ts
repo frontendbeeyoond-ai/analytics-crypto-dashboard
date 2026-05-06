@@ -1,5 +1,5 @@
 import { BetaAnalyticsDataClient } from "@google-analytics/data";
-import { DocumentsAnalyticsData, FilterParams, GlobalParamRow, GlobalParamsData, NewsletterAnalyticsData, OnlineShopAnalyticsData, PageViewAnalyticsData, PresaleAnalyticsData, TrustpilotAnalyticsData } from "@/types/analytics";
+import { DocumentsAnalyticsData, FilterParams, GlobalParamRow, GlobalParamsData, NewsletterAnalyticsData, OnlineShopAnalyticsData, PageViewAnalyticsData, PageTitleRow, PresaleAnalyticsData, ScrollDepthDetailData, SocialClickAnalyticsData, TrustpilotAnalyticsData } from "@/types/analytics";
 
 // Initialize GA4 client with service account
 let analyticsClient: BetaAnalyticsDataClient | null = null;
@@ -789,7 +789,7 @@ export async function fetchPageViewDetail(filters: FilterParams): Promise<PageVi
     }));
   }
 
-  const [kpiResult, engagementResult, overTimeResult, countryResult] =
+  const [kpiResult, engagementResult, overTimeResult, countryResult, pageTitleResult] =
     await Promise.all([
       // Core KPIs scoped to page_view events
       client.runReport({
@@ -832,6 +832,19 @@ export async function fetchPageViewDetail(filters: FilterParams): Promise<PageVi
         dimensionFilter: pageViewFilter,
         orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
       }),
+      // Page title breakdown (session-level metrics; no event filter)
+      settle(
+        client.runReport({
+          property: `properties/${propertyId}`,
+          dateRanges: [{ startDate, endDate }],
+          dimensions: [{ name: "pageTitle" }],
+          metrics: [{ name: "screenPageViews" }, { name: "totalUsers" }, { name: "userEngagementDuration" }],
+          orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
+          limit: 20,
+        }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        [null] as any
+      ),
     ]);
 
   // Realtime query is isolated — a synchronous throw or API rejection must not crash the page
@@ -874,6 +887,28 @@ export async function fetchPageViewDetail(filters: FilterParams): Promise<PageVi
     0
   );
 
+  const pageTitleRows: PageTitleRow[] = (() => {
+    const rows = pageTitleResult?.[0]?.rows || [];
+    const totalEvt = rows.reduce((s: number, r: any) => s + parseInt(r.metricValues?.[0]?.value || "0", 10), 0);
+    return rows
+      .filter((r: any) => {
+        const t = r.dimensionValues?.[0]?.value;
+        return t && t !== "(not set)";
+      })
+      .map((row: any) => {
+        const ec = parseInt(row.metricValues?.[0]?.value || "0", 10);
+        const tu = parseInt(row.metricValues?.[1]?.value || "0", 10);
+        const engTime = parseFloat(row.metricValues?.[2]?.value || "0");
+        return {
+          title: row.dimensionValues?.[0]?.value as string,
+          eventCount: ec,
+          totalUsers: tu,
+          percentage: totalEvt > 0 ? Math.round((ec / totalEvt) * 1000) / 10 : 0,
+          avgTimeSec: ec > 0 ? Math.round(engTime / ec) : 0,
+        };
+      });
+  })();
+
   return {
     totalEvents,
     totalUsers,
@@ -888,6 +923,7 @@ export async function fetchPageViewDetail(filters: FilterParams): Promise<PageVi
     engagedSessionsPerUser,
     eventsOverTime,
     countryBreakdown: parseBreakdownRows(countryResult).slice(0, 15),
+    pageTitleBreakdown: pageTitleRows,
   };
 }
 
@@ -1461,6 +1497,206 @@ export async function fetchTrustpilotDetail(filters: FilterParams): Promise<Trus
     sessions,
     eventsLast30Min,
     eventsOverTime,
+  };
+}
+
+// Fetch detailed Social Click analytics
+export async function fetchSocialClickDetail(filters: FilterParams): Promise<SocialClickAnalyticsData> {
+  const client = getAnalyticsClient();
+  const propertyId = getPropertyId();
+  const { startDate, endDate } = buildDateRange(filters);
+
+  const socialFilter = {
+    filter: {
+      fieldName: "eventName",
+      stringFilter: { matchType: "EXACT" as const, value: "social_click" },
+    },
+  };
+
+  function parseRows(result: any): { dimension: string; eventCount: number; totalUsers: number }[] {
+    const rows = result?.[0]?.rows || [];
+    return rows.map((row: any) => ({
+      dimension: row.dimensionValues?.[0]?.value || "unknown",
+      eventCount: parseInt(row.metricValues?.[0]?.value || "0", 10),
+      totalUsers: parseInt(row.metricValues?.[1]?.value || "0", 10),
+    }));
+  }
+
+  function customDimReport(dimension: string) {
+    return settle(
+      client.runReport({
+        property: `properties/${propertyId}`,
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: dimension }],
+        metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
+        dimensionFilter: socialFilter,
+        orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      [null] as any
+    );
+  }
+
+  const [kpiResult, overTimeResult, countryResult, clickLocationResult, destUrlResult] =
+    await Promise.all([
+      client.runReport({
+        property: `properties/${propertyId}`,
+        dateRanges: [{ startDate, endDate }],
+        metrics: [
+          { name: "eventCount" },
+          { name: "totalUsers" },
+          { name: "activeUsers" },
+          { name: "sessions" },
+        ],
+        dimensionFilter: socialFilter,
+      }),
+      client.runReport({
+        property: `properties/${propertyId}`,
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: "date" }],
+        metrics: [{ name: "eventCount" }],
+        dimensionFilter: socialFilter,
+        orderBys: [{ dimension: { dimensionName: "date" } }],
+      }),
+      client.runReport({
+        property: `properties/${propertyId}`,
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: "country" }],
+        metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
+        dimensionFilter: socialFilter,
+        orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+      }),
+      customDimReport("customEvent:click_location"),
+      customDimReport("customEvent:destination_url"),
+    ]);
+
+  const kpiRow = kpiResult?.[0]?.rows?.[0]?.metricValues;
+  const totalEvents = parseInt(kpiRow?.[0]?.value || "0", 10);
+  const totalUsers = parseInt(kpiRow?.[1]?.value || "0", 10);
+  const activeUsers = parseInt(kpiRow?.[2]?.value || "0", 10);
+  const sessions = parseInt(kpiRow?.[3]?.value || "0", 10);
+
+  const eventsOverTime = (overTimeResult?.[0]?.rows || []).map((row: any) => ({
+    date: formatDate(row.dimensionValues?.[0]?.value || ""),
+    value: parseInt(row.metricValues?.[0]?.value || "0", 10),
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let realtimeResult: any = null;
+  try {
+    realtimeResult = await client.runRealtimeReport({
+      property: `properties/${propertyId}`,
+      metrics: [{ name: "eventCount" }],
+      dimensionFilter: socialFilter,
+      minuteRanges: [{ name: "last30min", startMinutesAgo: 29, endMinutesAgo: 0 }],
+    });
+  } catch { /* realtime unavailable */ }
+
+  const realtimeRows = realtimeResult?.[0]?.rows || [];
+  const eventsLast30Min = realtimeRows.reduce(
+    (sum: number, row: any) => sum + parseInt(row.metricValues?.[0]?.value || "0", 10),
+    0
+  );
+
+  const countryRows = (countryResult?.[0]?.rows || []).filter((r: any) => {
+    const c = r.dimensionValues?.[0]?.value;
+    return c && c !== "(not set)";
+  });
+
+  return {
+    totalEvents,
+    totalUsers,
+    activeUsers,
+    eventsPerActiveUser: activeUsers > 0 ? Math.round((totalEvents / activeUsers) * 10) / 10 : 0,
+    eventsPerSession: sessions > 0 ? Math.round((totalEvents / sessions) * 100) / 100 : 0,
+    sessions,
+    eventsLast30Min,
+    eventsOverTime,
+    countryBreakdown: countryRows.slice(0, 15).map((row: any) => ({
+      dimension: row.dimensionValues?.[0]?.value as string,
+      eventCount: parseInt(row.metricValues?.[0]?.value || "0", 10),
+      totalUsers: parseInt(row.metricValues?.[1]?.value || "0", 10),
+    })),
+    clickLocationBreakdown: parseRows(clickLocationResult),
+    destinationUrlBreakdown: parseRows(destUrlResult),
+  };
+}
+
+// Fetch detailed Scroll Depth analytics
+export async function fetchScrollDepthDetail(filters: FilterParams): Promise<ScrollDepthDetailData> {
+  const client = getAnalyticsClient();
+  const propertyId = getPropertyId();
+  const { startDate, endDate } = buildDateRange(filters);
+
+  const scrollFilter = {
+    filter: {
+      fieldName: "eventName",
+      stringFilter: { matchType: "EXACT" as const, value: "scroll_depth" },
+    },
+  };
+
+  const [kpiResult, countryResult] = await Promise.all([
+    client.runReport({
+      property: `properties/${propertyId}`,
+      dateRanges: [{ startDate, endDate }],
+      metrics: [
+        { name: "eventCount" },
+        { name: "totalUsers" },
+        { name: "activeUsers" },
+      ],
+      dimensionFilter: scrollFilter,
+    }),
+    client.runReport({
+      property: `properties/${propertyId}`,
+      dateRanges: [{ startDate, endDate }],
+      dimensions: [{ name: "country" }],
+      metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
+      dimensionFilter: scrollFilter,
+      orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+    }),
+  ]);
+
+  const kpiRow = kpiResult?.[0]?.rows?.[0]?.metricValues;
+  const totalEvents = parseInt(kpiRow?.[0]?.value || "0", 10);
+  const totalUsers = parseInt(kpiRow?.[1]?.value || "0", 10);
+  const activeUsers = parseInt(kpiRow?.[2]?.value || "0", 10);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let realtimeResult: any = null;
+  try {
+    realtimeResult = await client.runRealtimeReport({
+      property: `properties/${propertyId}`,
+      metrics: [{ name: "eventCount" }],
+      dimensionFilter: scrollFilter,
+      minuteRanges: [{ name: "last30min", startMinutesAgo: 29, endMinutesAgo: 0 }],
+    });
+  } catch { /* realtime unavailable */ }
+
+  const realtimeRows = realtimeResult?.[0]?.rows || [];
+  const eventsLast30Min = realtimeRows.reduce(
+    (sum: number, row: any) => sum + parseInt(row.metricValues?.[0]?.value || "0", 10),
+    0
+  );
+
+  const countryBreakdown = (countryResult?.[0]?.rows || [])
+    .filter((r: any) => {
+      const c = r.dimensionValues?.[0]?.value;
+      return c && c !== "(not set)";
+    })
+    .slice(0, 15)
+    .map((row: any) => ({
+      dimension: row.dimensionValues?.[0]?.value as string,
+      eventCount: parseInt(row.metricValues?.[0]?.value || "0", 10),
+      totalUsers: parseInt(row.metricValues?.[1]?.value || "0", 10),
+    }));
+
+  return {
+    totalEvents,
+    totalUsers,
+    activeUsers,
+    eventsPerActiveUser: activeUsers > 0 ? Math.round((totalEvents / activeUsers) * 10) / 10 : 0,
+    eventsLast30Min,
+    countryBreakdown,
   };
 }
 
