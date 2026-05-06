@@ -35,12 +35,17 @@ const CARD: React.CSSProperties = {
   border: "1px solid #1f2937",
 };
 const TOOLTIP_STYLE: React.CSSProperties = {
-  backgroundColor: "#0d1117",
-  border: "1px solid #1f2937",
+  backgroundColor: "#1f2937",
+  border: "1px solid #374151",
   borderRadius: "8px",
   fontSize: "12px",
   color: "#f9fafb",
 };
+const TOOLTIP_LABEL_STYLE: React.CSSProperties = {
+  color: "#f9fafb",
+  fontWeight: 600,
+};
+const TOOLTIP_ITEM_STYLE: React.CSSProperties = { color: "#d1d5db" };
 const GRID_STROKE = "#1f2937";
 const AXIS_TICK = { fontSize: 12, fill: "#6b7280" };
 const AXIS_LINE = { stroke: "#1f2937" };
@@ -138,6 +143,8 @@ export function ScrollDepthChart({ data }: { data: ScrollDepthBucket[] }) {
             <Tooltip
               formatter={(value: number) => [`${value}%`, "Percentage"]}
               contentStyle={TOOLTIP_STYLE}
+              labelStyle={TOOLTIP_LABEL_STYLE}
+              itemStyle={TOOLTIP_ITEM_STYLE}
             />
             <Bar
               dataKey="percentage"
@@ -183,6 +190,8 @@ export function UsersOverTimeChart({
               formatter={(value: number) => [value.toLocaleString(), "Users"]}
               labelFormatter={formatDate}
               contentStyle={TOOLTIP_STYLE}
+              labelStyle={TOOLTIP_LABEL_STYLE}
+              itemStyle={TOOLTIP_ITEM_STYLE}
             />
             <Line
               type="monotone"
@@ -235,6 +244,8 @@ export function TrafficPieChart({ data }: { data: TrafficSourceData[] }) {
                 name ? name.charAt(0).toUpperCase() + name.slice(1) : name,
               ]}
               contentStyle={TOOLTIP_STYLE}
+              labelStyle={TOOLTIP_LABEL_STYLE}
+              itemStyle={TOOLTIP_ITEM_STYLE}
             />
             <Legend
               verticalAlign="bottom"
