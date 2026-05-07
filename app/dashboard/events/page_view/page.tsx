@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -17,61 +18,18 @@ const DIM    = "#9ca3af";
 const ACCENT = "#3b82f6";
 const TT     = { backgroundColor: CARD, border: `1px solid ${BORDER}`, borderRadius: "8px", fontSize: "12px", color: "#f9fafb" };
 
-type RangeKey = "today" | "7days" | "28days" | "90days" | "12months";
-const RANGES: Record<RangeKey, { label: string; startDate: string; endDate: string }> = {
-  today:      { label: "Today",          startDate: "today",      endDate: "today" },
-  "7days":    { label: "Last 7 days",    startDate: "7daysAgo",   endDate: "today" },
-  "28days":   { label: "Last 28 days",   startDate: "28daysAgo",  endDate: "today" },
-  "90days":   { label: "Last 90 days",   startDate: "90daysAgo",  endDate: "today" },
-  "12months": { label: "Last 12 months", startDate: "365daysAgo", endDate: "today" },
-};
-const RANGE_KEYS: RangeKey[] = ["today", "7days", "28days", "90days", "12months"];
-
 function formatSeconds(sec: number): string {
   if (sec < 60) return `${sec}s`;
   return `${Math.floor(sec / 60)}m ${sec % 60}s`;
 }
 
-function DateRangePicker({ value, onChange }: { value: RangeKey; onChange: (k: RangeKey) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function outside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", outside);
-    return () => document.removeEventListener("mousedown", outside);
-  }, []);
-  return (
-    <div className="relative shrink-0" ref={ref}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5"
-        style={{ background: CARD, border: `1px solid ${BORDER}` }}
-      >
-        <svg className="h-4 w-4 shrink-0" style={{ color: ACCENT }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-        </svg>
-        {RANGES[value].label}
-        <svg className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} style={{ color: MUTED }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
-      {open && (
-        <div className="absolute right-0 mt-2 w-48 rounded-xl shadow-2xl py-2 z-50" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
-          {RANGE_KEYS.map((k) => (
-            <button key={k} onClick={() => { onChange(k); setOpen(false); }}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-left transition-colors hover:bg-white/5"
-              style={{ color: value === k ? ACCENT : DIM }}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${value === k ? "bg-blue-400" : "bg-transparent"}`} />
-              {RANGES[k].label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function rangeLabel(start: string, end: string): string {
+  if (start === "today" && end === "today") return "Today";
+  if (start === "7daysAgo" && end === "today") return "Last 7 days";
+  if (start === "28daysAgo" && end === "today") return "Last 28 days";
+  if (start === "90daysAgo" && end === "today") return "Last 90 days";
+  if (start === "365daysAgo" && end === "today") return "Last 12 months";
+  return `${start} – ${end}`;
 }
 
 function KPICard({ label, value, sub, accent = ACCENT }: { label: string; value: string | number; sub?: string; accent?: string }) {
@@ -101,7 +59,9 @@ export default function PageViewDetailPage() {
   const [data, setData]           = useState<PageViewAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError]         = useState<string | null>(null);
-  const [rangeKey, setRangeKey]   = useState<RangeKey>("28days");
+  const searchParams = useSearchParams();
+  const startDate    = searchParams.get("start_date") || "28daysAgo";
+  const endDate      = searchParams.get("end_date")   || "today";
   const [retryAt, setRetryAt]     = useState(0);
 
   useEffect(() => {
@@ -109,7 +69,6 @@ export default function PageViewDetailPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const { startDate, endDate } = RANGES[rangeKey];
         const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
         const res = await fetch(`/api/analytics/pageview?${params}`);
         if (!res.ok) {
@@ -124,7 +83,7 @@ export default function PageViewDetailPage() {
       }
     }
     load();
-  }, [rangeKey, retryAt]);
+  }, [startDate, endDate, retryAt]);
 
   const totalPT = data?.pageTitleBreakdown?.reduce((s, r) => s + r.eventCount, 0) ?? 0;
 
@@ -147,7 +106,6 @@ export default function PageViewDetailPage() {
           <h1 className="text-2xl font-bold text-white">Page View</h1>
           <p className="mt-1 text-sm" style={{ color: MUTED }}>Detailed analytics for <code className="rounded px-1 py-0.5 text-xs" style={{ background: "#1f2937", color: ACCENT }}>page_view</code> events · GA4</p>
         </div>
-        <DateRangePicker value={rangeKey} onChange={setRangeKey} />
       </div>
 
       {/* Loading */}
@@ -200,7 +158,7 @@ export default function PageViewDetailPage() {
             </div>
             <div className="lg:col-span-3 rounded-xl p-6" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
               <h2 className="text-base font-semibold text-white mb-1">Events Over Time</h2>
-              <p className="text-xs mb-4" style={{ color: MUTED }}>Daily page_view count · {RANGES[rangeKey].label}</p>
+              <p className="text-xs mb-4" style={{ color: MUTED }}>Daily page_view count · {rangeLabel(startDate, endDate)}</p>
               <div className="h-40">
                 {data.eventsOverTime.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   AreaChart, Area,
   PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
+import { useSearchParams } from "next/navigation";
 import { WebsiteAnalyticsData } from "@/types/analytics";
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
@@ -16,60 +17,13 @@ const MUTED   = "#6b7280";
 const DIM     = "#9ca3af";
 const TT      = { backgroundColor: CARD, border: `1px solid ${BORDER}`, borderRadius: "8px", fontSize: "12px", color: "#f9fafb" };
 
-// ── Date range picker ─────────────────────────────────────────────────────────
-type RangeKey = "today" | "7days" | "28days" | "90days" | "12months";
-interface RangeOption { label: string; startDate: string; endDate: string }
-const RANGE_OPTIONS: Record<RangeKey, RangeOption> = {
-  today:      { label: "Today",           startDate: "today",       endDate: "today" },
-  "7days":    { label: "Last 7 days",     startDate: "7daysAgo",    endDate: "today" },
-  "28days":   { label: "Last 28 days",    startDate: "28daysAgo",   endDate: "today" },
-  "90days":   { label: "Last 90 days",    startDate: "90daysAgo",   endDate: "today" },
-  "12months": { label: "Last 12 months",  startDate: "365daysAgo",  endDate: "today" },
-};
-const RANGE_KEYS: RangeKey[] = ["today", "7days", "28days", "90days", "12months"];
-
-function DateRangePicker({ value, onChange }: { value: RangeKey; onChange: (k: RangeKey) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function outside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", outside);
-    return () => document.removeEventListener("mousedown", outside);
-  }, []);
-  return (
-    <div className="relative shrink-0" ref={ref}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5"
-        style={{ background: CARD, border: `1px solid ${BORDER}` }}
-      >
-        <svg className="h-4 w-4 shrink-0" style={{ color: "#60a5fa" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-        </svg>
-        {RANGE_OPTIONS[value].label}
-        <svg className={`h-4 w-4 shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} style={{ color: MUTED }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
-      {open && (
-        <div className="absolute right-0 mt-2 w-48 rounded-xl shadow-2xl py-2 z-50" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
-          {RANGE_KEYS.map((k) => (
-            <button
-              key={k}
-              onClick={() => { onChange(k); setOpen(false); }}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-left transition-colors hover:bg-white/5"
-              style={{ color: value === k ? "#60a5fa" : DIM }}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${value === k ? "bg-blue-400" : "bg-transparent"}`} />
-              {RANGE_OPTIONS[k].label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function rangeLabel(start: string, end: string): string {
+  if (start === "today" && end === "today") return "Today";
+  if (start === "7daysAgo" && end === "today") return "Last 7 days";
+  if (start === "28daysAgo" && end === "today") return "Last 28 days";
+  if (start === "90daysAgo" && end === "today") return "Last 90 days";
+  if (start === "365daysAgo" && end === "today") return "Last 12 months";
+  return `${start} – ${end}`;
 }
 
 // ── KPI card ──────────────────────────────────────────────────────────────────
@@ -114,7 +68,9 @@ export default function WebsiteAnalyticsPage() {
   const [data,      setData]      = useState<WebsiteAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error,     setError]     = useState<string | null>(null);
-  const [rangeKey,  setRangeKey]  = useState<RangeKey>("28days");
+  const searchParams = useSearchParams();
+  const startDate    = searchParams.get("start_date") || "28daysAgo";
+  const endDate      = searchParams.get("end_date")   || "today";
   const [retryAt,   setRetryAt]   = useState(0);
 
   useEffect(() => {
@@ -122,7 +78,6 @@ export default function WebsiteAnalyticsPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const { startDate, endDate } = RANGE_OPTIONS[rangeKey];
         const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
         const res = await fetch(`/api/analytics/website?${params}`);
         if (!res.ok) {
@@ -137,7 +92,7 @@ export default function WebsiteAnalyticsPage() {
       }
     }
     load();
-  }, [rangeKey, retryAt]);
+  }, [startDate, endDate, retryAt]);
 
   const traffic = data?.trafficOverTime ?? [];
 
@@ -150,7 +105,6 @@ export default function WebsiteAnalyticsPage() {
           <h1 className="text-2xl font-bold text-white">Website Analytics</h1>
           <p className="mt-1 text-sm" style={{ color: MUTED }}>Traffic, pages, devices &amp; geography · GA4</p>
         </div>
-        <DateRangePicker value={rangeKey} onChange={setRangeKey} />
       </div>
 
       {/* Loading */}
@@ -235,7 +189,7 @@ export default function WebsiteAnalyticsPage() {
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold text-white">
-                  Traffic — {RANGE_OPTIONS[rangeKey].label}
+                  Traffic — {rangeLabel(startDate, endDate)}
                 </h2>
                 <p className="mt-0.5 text-xs" style={{ color: MUTED }}>Pageviews vs Sessions</p>
               </div>
@@ -296,7 +250,7 @@ export default function WebsiteAnalyticsPage() {
             {/* Language breakdown */}
             <div className="rounded-xl p-6" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
               <h2 className="text-base font-semibold text-white">Language Version — EN vs DE</h2>
-              <p className="mt-0.5 mb-6 text-xs" style={{ color: MUTED }}>Sessions by site language · {RANGE_OPTIONS[rangeKey].label.toLowerCase()}</p>
+              <p className="mt-0.5 mb-6 text-xs" style={{ color: MUTED }}>Sessions by site language · {rangeLabel(startDate, endDate).toLowerCase()}</p>
               {data.languageBreakdown.length > 0 ? (
                 <div className="space-y-4">
                   {data.languageBreakdown.map((item) => (
@@ -328,7 +282,7 @@ export default function WebsiteAnalyticsPage() {
             {/* Device breakdown donut */}
             <div className="rounded-xl p-6" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
               <h2 className="text-base font-semibold text-white">Device Breakdown</h2>
-              <p className="mt-0.5 mb-4 text-xs" style={{ color: MUTED }}>Traffic by device type · {RANGE_OPTIONS[rangeKey].label.toLowerCase()}</p>
+              <p className="mt-0.5 mb-4 text-xs" style={{ color: MUTED }}>Traffic by device type · {rangeLabel(startDate, endDate).toLowerCase()}</p>
               {data.deviceBreakdown.length > 0 ? (
                 <>
                   <div className="h-52">
@@ -424,7 +378,7 @@ export default function WebsiteAnalyticsPage() {
             <div className="rounded-xl overflow-hidden" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
               <div className="px-6 py-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
                 <h2 className="text-base font-semibold text-white">Traffic by Country</h2>
-                <p className="mt-0.5 text-xs" style={{ color: MUTED }}>Top countries by sessions · {RANGE_OPTIONS[rangeKey].label.toLowerCase()}</p>
+                <p className="mt-0.5 text-xs" style={{ color: MUTED }}>Top countries by sessions · {rangeLabel(startDate, endDate).toLowerCase()}</p>
               </div>
               <table className="w-full text-sm">
                 <thead style={{ background: "#111827" }}>

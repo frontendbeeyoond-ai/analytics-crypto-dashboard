@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
 import { logoutAction } from '@/app/actions/auth'
+import GlobalDatePicker from './GlobalDatePicker'
 
 interface HeaderProps {
   user: { email: string; name: string }
@@ -48,8 +49,15 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
         </svg>
       </button>
 
+      {/* Global date picker */}
+      <div className="ml-auto mr-3">
+        <Suspense fallback={null}>
+          <GlobalDatePicker />
+        </Suspense>
+      </div>
+
       {/* Profile dropdown */}
-      <div className="ml-auto relative" ref={dropdownRef}>
+      <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setOpen(!open)}
           className="flex items-center gap-2.5 py-1.5 px-2 rounded-xl transition-colors hover:bg-white/5"
