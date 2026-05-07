@@ -377,5 +377,5 @@ export interface WebsiteAnalyticsData {
   languageBreakdown: { language: string; sessions: number; percentage: number }[];
   topPages: { path: string; pageviews: number; users: number; percentage: number }[];
   deviceBreakdown: { device: string; sessions: number; percentage: number }[];
-  countryBreakdown: { country: string; sessions: number; percentage: number }[];
+  countryBreakdown: { country: string; sessions: number; users: number; percentage: number }[];
 }

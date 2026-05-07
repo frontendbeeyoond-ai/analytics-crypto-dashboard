@@ -296,7 +296,7 @@ export default function WebsiteAnalyticsPage() {
             {/* Language breakdown */}
             <div className="rounded-xl p-6" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
               <h2 className="text-base font-semibold text-white">Language Version — EN vs DE</h2>
-              <p className="mt-0.5 mb-6 text-xs" style={{ color: MUTED }}>Sessions by site language · last 30 days</p>
+              <p className="mt-0.5 mb-6 text-xs" style={{ color: MUTED }}>Sessions by site language · {RANGE_OPTIONS[rangeKey].label.toLowerCase()}</p>
               {data.languageBreakdown.length > 0 ? (
                 <div className="space-y-4">
                   {data.languageBreakdown.map((item) => (
@@ -328,7 +328,7 @@ export default function WebsiteAnalyticsPage() {
             {/* Device breakdown donut */}
             <div className="rounded-xl p-6" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
               <h2 className="text-base font-semibold text-white">Device Breakdown</h2>
-              <p className="mt-0.5 mb-4 text-xs" style={{ color: MUTED }}>Traffic by device type · last 30 days</p>
+              <p className="mt-0.5 mb-4 text-xs" style={{ color: MUTED }}>Traffic by device type · {RANGE_OPTIONS[rangeKey].label.toLowerCase()}</p>
               {data.deviceBreakdown.length > 0 ? (
                 <>
                   <div className="h-52">
@@ -424,13 +424,14 @@ export default function WebsiteAnalyticsPage() {
             <div className="rounded-xl overflow-hidden" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
               <div className="px-6 py-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
                 <h2 className="text-base font-semibold text-white">Traffic by Country</h2>
-                <p className="mt-0.5 text-xs" style={{ color: MUTED }}>Top countries by sessions · last 30 days</p>
+                <p className="mt-0.5 text-xs" style={{ color: MUTED }}>Top countries by sessions · {RANGE_OPTIONS[rangeKey].label.toLowerCase()}</p>
               </div>
               <table className="w-full text-sm">
                 <thead style={{ background: "#111827" }}>
                   <tr>
                     <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: MUTED }}>Country</th>
                     <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: MUTED }}>Sessions</th>
+                    <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: MUTED }}>Users</th>
                     <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: MUTED }}>Share</th>
                   </tr>
                 </thead>
@@ -444,6 +445,7 @@ export default function WebsiteAnalyticsPage() {
                     >
                       <td className="px-5 py-3 font-medium text-white">{c.country}</td>
                       <td className="px-5 py-3 text-right font-semibold text-white">{c.sessions.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-right text-white">{c.users.toLocaleString()}</td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <div className="h-1.5 w-14 overflow-hidden rounded-full" style={{ background: "#1f2937" }}>
@@ -454,7 +456,7 @@ export default function WebsiteAnalyticsPage() {
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={3} className="px-5 py-8 text-center text-sm" style={{ color: MUTED }}>No country data available</td></tr>
+                    <tr><td colSpan={4} className="px-5 py-8 text-center text-sm" style={{ color: MUTED }}>No country data available</td></tr>
                   )}
                 </tbody>
               </table>

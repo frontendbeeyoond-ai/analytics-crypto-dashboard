@@ -1733,11 +1733,11 @@ export async function fetchWebsiteAnalytics(filters: FilterParams) {
         }),
         [null] as any
       ),
-      // Language breakdown — always last 30 days
+      // Language breakdown for selected range
       settle(
         client.runReport({
           property: `properties/${propertyId}`,
-          dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+          dateRanges: [{ startDate, endDate }],
           dimensions: [{ name: "language" }],
           metrics: [{ name: "sessions" }],
           orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
@@ -1758,24 +1758,24 @@ export async function fetchWebsiteAnalytics(filters: FilterParams) {
         }),
         [null] as any
       ),
-      // Device breakdown — always last 30 days
+      // Device breakdown for selected range
       settle(
         client.runReport({
           property: `properties/${propertyId}`,
-          dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+          dateRanges: [{ startDate, endDate }],
           dimensions: [{ name: "deviceCategory" }],
           metrics: [{ name: "sessions" }],
           orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
         }),
         [null] as any
       ),
-      // Country breakdown — always last 30 days
+      // Country breakdown for selected range
       settle(
         client.runReport({
           property: `properties/${propertyId}`,
-          dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+          dateRanges: [{ startDate, endDate }],
           dimensions: [{ name: "country" }],
-          metrics: [{ name: "sessions" }],
+          metrics: [{ name: "sessions" }, { name: "totalUsers" }],
           orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
           limit: 10,
         }),
@@ -1852,6 +1852,7 @@ export async function fetchWebsiteAnalytics(filters: FilterParams) {
     return {
       country:    row.dimensionValues?.[0]?.value as string,
       sessions:   s,
+      users:      parseInt(row.metricValues?.[1]?.value || "0", 10),
       percentage: totalCoun > 0 ? Math.round((s / totalCoun) * 1000) / 10 : 0,
     };
   });
